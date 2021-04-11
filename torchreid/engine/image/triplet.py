@@ -69,9 +69,11 @@ class ImageTripletEngine(Engine):
         weight_x=1,
         scheduler=None,
         use_gpu=True,
-        label_smooth=True
+        label_smooth=True,
+        experiment=None
     ):
-        super(ImageTripletEngine, self).__init__(datamanager, use_gpu)
+        super(ImageTripletEngine, self).__init__(datamanager, use_gpu,
+                                                 experiment)
 
         self.model = model
         self.optimizer = optimizer

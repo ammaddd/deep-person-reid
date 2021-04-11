@@ -1,5 +1,6 @@
 import sys
 import time
+from comet_ml import Experiment
 import os.path as osp
 import argparse
 import torch
@@ -24,7 +25,8 @@ def build_datamanager(cfg):
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
 
-def build_engine(cfg, datamanager, model, optimizer, scheduler):
+def build_engine(cfg, datamanager, model, optimizer, scheduler,
+                 experiment):
     if cfg.data.type == 'image':
         if cfg.loss.name == 'softmax':
             engine = torchreid.engine.ImageSoftmaxEngine(
@@ -33,7 +35,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 optimizer=optimizer,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth
+                label_smooth=cfg.loss.softmax.label_smooth,
+                experiment=experiment
             )
 
         else:
@@ -46,7 +49,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 weight_x=cfg.loss.triplet.weight_x,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth
+                label_smooth=cfg.loss.softmax.label_smooth,
+                experiment=experiment
             )
 
     else:
@@ -58,7 +62,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
                 label_smooth=cfg.loss.softmax.label_smooth,
-                pooling_method=cfg.video.pooling_method
+                pooling_method=cfg.video.pooling_method,
+                experiment=experiment
             )
 
         else:
@@ -71,7 +76,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 weight_x=cfg.loss.triplet.weight_x,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth
+                label_smooth=cfg.loss.softmax.label_smooth,
+                experiment=experiment
             )
 
     return engine
@@ -95,6 +101,7 @@ def check_cfg(cfg):
 
 
 def main():
+    experiment = Experiment(auto_metric_logging=False)
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -128,6 +135,7 @@ def main():
         help='Modify config options using the command-line'
     )
     args = parser.parse_args()
+    experiment.log_others(vars(args))
 
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available()
@@ -137,6 +145,8 @@ def main():
     cfg.merge_from_list(args.opts)
     set_random_seed(cfg.train.seed)
     check_cfg(cfg)
+    experiment.log_asset_data(cfg, "cfg.yaml")
+    experiment.log_code("./torchreid/engine/engine.py")
 
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')
@@ -183,7 +193,8 @@ def main():
     print(
         'Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type)
     )
-    engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
+    engine = build_engine(cfg, datamanager, model, optimizer, scheduler,
+                          experiment)
     engine.run(**engine_run_kwargs(cfg))
 
 
