@@ -1,6 +1,6 @@
 import sys
 import time
-from comet_ml import Experiment
+from torchreid.utils.comet_utils import CometLogger
 import os.path as osp
 import argparse
 import torch
@@ -26,7 +26,7 @@ def build_datamanager(cfg):
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
-                 experiment):
+                 comet_logger):
     if cfg.data.type == 'image':
         if cfg.loss.name == 'softmax':
             engine = torchreid.engine.ImageSoftmaxEngine(
@@ -36,7 +36,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
                 label_smooth=cfg.loss.softmax.label_smooth,
-                experiment=experiment
+                comet_logger=comet_logger
             )
 
         else:
@@ -50,7 +50,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
                 label_smooth=cfg.loss.softmax.label_smooth,
-                experiment=experiment
+                comet_logger=comet_logger
             )
 
     else:
@@ -63,7 +63,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                 use_gpu=cfg.use_gpu,
                 label_smooth=cfg.loss.softmax.label_smooth,
                 pooling_method=cfg.video.pooling_method,
-                experiment=experiment
+                comet_logger=comet_logger
             )
 
         else:
@@ -77,7 +77,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
                 label_smooth=cfg.loss.softmax.label_smooth,
-                experiment=experiment
+                comet_logger=comet_logger
             )
 
     return engine
@@ -101,7 +101,6 @@ def check_cfg(cfg):
 
 
 def main():
-    experiment = Experiment(auto_metric_logging=False)
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -134,8 +133,16 @@ def main():
         nargs=argparse.REMAINDER,
         help='Modify config options using the command-line'
     )
+    parser.add_argument(
+        '--comet',
+        default=False,
+        type=bool,
+        help='enable comet logging (if comet installed)'
+    )
     args = parser.parse_args()
-    experiment.log_others(vars(args))
+
+    comet_logger = CometLogger(args.comet, auto_metric_logging=False)
+    comet_logger.log_others(vars(args))
 
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available()
@@ -145,8 +152,8 @@ def main():
     cfg.merge_from_list(args.opts)
     set_random_seed(cfg.train.seed)
     check_cfg(cfg)
-    experiment.log_asset_data(cfg, "cfg.yaml")
-    experiment.log_code("./torchreid/engine/engine.py")
+    comet_logger.log_asset_data(cfg, "cfg.yaml")
+    comet_logger.log_code("./torchreid/engine/engine.py")
 
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')
@@ -194,7 +201,7 @@ def main():
         'Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type)
     )
     engine = build_engine(cfg, datamanager, model, optimizer, scheduler,
-                          experiment)
+                          comet_logger)
     engine.run(**engine_run_kwargs(cfg))
 
 

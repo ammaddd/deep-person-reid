@@ -61,10 +61,10 @@ class ImageSoftmaxEngine(Engine):
         scheduler=None,
         use_gpu=True,
         label_smooth=True,
-        experiment=None
+        comet_logger=None
     ):
         super(ImageSoftmaxEngine, self).__init__(datamanager, use_gpu,
-                                                 experiment)
+                                                 comet_logger)
 
         self.model = model
         self.optimizer = optimizer

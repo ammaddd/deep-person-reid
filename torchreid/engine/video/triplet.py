@@ -76,7 +76,7 @@ class VideoTripletEngine(ImageTripletEngine):
         use_gpu=True,
         label_smooth=True,
         pooling_method='avg',
-        experiment=None
+        comet_logger=None
     ):
         super(VideoTripletEngine, self).__init__(
             datamanager,
@@ -88,7 +88,7 @@ class VideoTripletEngine(ImageTripletEngine):
             scheduler=scheduler,
             use_gpu=use_gpu,
             label_smooth=label_smooth,
-            experiment=experiment
+            comet_logger=comet_logger
         )
         self.pooling_method = pooling_method
 
