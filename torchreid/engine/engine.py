@@ -25,7 +25,7 @@ class Engine(object):
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
-    def __init__(self, datamanager, use_gpu=True):
+    def __init__(self, datamanager, use_gpu=True, comet_logger=None):
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
         self.test_loader = self.datamanager.test_loader
@@ -40,6 +40,7 @@ class Engine(object):
         self._models = OrderedDict()
         self._optims = OrderedDict()
         self._scheds = OrderedDict()
+        self._comet_logger = comet_logger
 
     def register_model(self, name='model', model=None, optim=None, sched=None):
         if self.__dict__.get('_models') is None:
@@ -87,6 +88,7 @@ class Engine(object):
                 osp.join(save_dir, name),
                 is_best=is_best
             )
+            self._comet_logger.log_model("reid", osp.join(save_dir, name))
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']
@@ -190,7 +192,7 @@ class Engine(object):
             self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
-                open_layers=open_layers
+                open_layers=open_layers,
             )
 
             if (self.epoch + 1) >= start_eval \
@@ -241,10 +243,20 @@ class Engine(object):
         self.num_batches = len(self.train_loader)
         end = time.time()
         for self.batch_idx, data in enumerate(self.train_loader):
+            global_step = self.epoch*len(self.train_loader)+self.batch_idx
             data_time.update(time.time() - end)
             loss_summary = self.forward_backward(data)
             batch_time.update(time.time() - end)
             losses.update(loss_summary)
+
+            lr = self.get_current_lr()
+            self._comet_logger.log_metric("learning_rate", lr,
+                                          step=global_step,
+                                          epoch=self.epoch)
+            for k,v in loss_summary.items():
+                self._comet_logger.log_metric("train_{}".format(k), v,
+                                              step=global_step,
+                                              epoch=self.epoch)
 
             if (self.batch_idx + 1) % print_freq == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
@@ -335,6 +347,11 @@ class Engine(object):
                 rerank=rerank
             )
 
+            self._comet_logger.log_metric(f'Test/{name}/rank1', rank1,
+                                          epoch=self.epoch)
+            self._comet_logger.log_metric(f'Test/{name}/mAP', mAP,
+                                          epoch=self.epoch)
+            
             if self.writer is not None:
                 self.writer.add_scalar(f'Test/{name}/rank1', rank1, self.epoch)
                 self.writer.add_scalar(f'Test/{name}/mAP', mAP, self.epoch)
